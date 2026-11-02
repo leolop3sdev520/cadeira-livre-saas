@@ -1,0 +1,18 @@
+# Dependências
+node_modules/
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Build / saída
+dist/
+coverage/
+
+# DBMate (gerado a cada migrate)
+db/schema.sql
+
+# Sistema
+.DS_Store
+*.log

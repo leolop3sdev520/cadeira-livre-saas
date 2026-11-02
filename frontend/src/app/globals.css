@@ -1,0 +1,243 @@
+@import "tailwindcss";
+
+/* Variante dark (suporta classe .dark e data-theme="dark") */
+@custom-variant dark (&:where(.dark, [data-theme="dark"], [data-theme="dark"] *));
+
+/* ==========================================================================
+   1. TOKENS PRIMITIVOS (Identidade Visual e Marca)
+   ========================================================================== */
+@theme {
+  /* Neutros escuros */
+  --color-ink: #0e1014;
+  --color-graphite: #171a20;
+  --color-surface: #1f232b;
+  --color-surface-2: #2a2f38;
+  --color-line-dark: #343a45;
+  --color-muted-dark: #9aa1ad;
+
+  /* Neutros claros */
+  --color-bone: #f6f2ea;
+  --color-sand: #e9e2d3;
+  --color-line-light: #d9d3c6;
+  --color-text-primary: #14161a;
+  --color-text-secondary: #5b616c;
+
+  /* Marca: latão */
+  --color-brass-300: #e2b766;
+  --color-brass-500: #c8963e;
+  --color-brass-700: #85591a;
+
+  /* Status */
+  --color-success: #2f9e6e;
+  --color-warning: #e2a62b;
+  --color-danger: #c93b3b;
+  --color-info: #3f83c9;
+
+  /* Tipografia */
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  /* Raios */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+
+  /* Sombras */
+  --shadow-e1: 0 1px 2px rgb(20 22 26 / 0.06), 0 2px 6px rgb(20 22 26 / 0.06);
+  --shadow-e2:
+    0 4px 12px rgb(20 22 26 / 0.12), 0 12px 32px rgb(20 22 26 / 0.12);
+
+  /* Breakpoints customizados */
+  --breakpoint-xl: 90rem;
+}
+
+/* ==========================================================================
+   2. MAPEAMENTO SEMÂNTICO (Shadcn UI + Tema da Marca)
+   ========================================================================== */
+:root {
+  color-scheme: light;
+
+  --background: var(--color-bone);
+  --foreground: var(--color-text-primary);
+  --card: #ffffff;
+  --card-foreground: var(--color-text-primary);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-text-primary);
+
+  --primary: var(--color-brass-500);
+  --primary-foreground: var(--color-ink);
+
+  --secondary: var(--color-sand);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-sand);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-sand);
+  --accent-foreground: var(--color-text-primary);
+
+  --destructive: var(--color-danger);
+  --destructive-foreground: #ffffff;
+
+  --border: var(--color-line-light);
+  --input: var(--color-line-light);
+  --ring: var(--color-brass-500);
+  --radius: var(--radius-md);
+}
+
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: var(--color-ink);
+  --foreground: var(--color-bone);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-bone);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-bone);
+
+  --primary: var(--color-brass-500);
+  --primary-foreground: var(--color-ink);
+
+  --secondary: var(--color-surface-2);
+  --secondary-foreground: var(--color-bone);
+  --muted: var(--color-surface-2);
+  --muted-foreground: var(--color-muted-dark);
+  --accent: var(--color-surface-2);
+  --accent-foreground: var(--color-bone);
+
+  --border: var(--color-line-dark);
+  --input: var(--color-line-dark);
+  --ring: var(--color-brass-300);
+}
+
+/* ==========================================================================
+   3. TAILWIND V4 (Mapeamento dos utilitários)
+   ========================================================================== */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-brand-bg: rgb(200 150 62 / 0.18);
+  --color-brand-fg: var(--color-brass-700);
+}
+
+/* ==========================================================================
+   4. BASE E UTILITÁRIOS GLOBAIS
+   ========================================================================== */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 100ms !important;
+    }
+  }
+}
+
+/* Motivo da marca: listras do poste de barbeiro */
+@utility pole {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-brass-500) 0 14px,
+    var(--color-bone) 14px 28px,
+    var(--color-surface-2) 28px 42px
+  );
+}
+
+@utility overline {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-brass-700);
+}
+
+/* ==========================================================================
+   5. COMPONENTES ESPECÍFICOS DE NEGÓCIO
+   ========================================================================== */
+@layer components {
+  .slot {
+    min-width: 5rem;
+    min-height: 44px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--card);
+    color: var(--foreground);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 150ms;
+  }
+  .slot:hover:not(:disabled) {
+    background: var(--accent);
+  }
+  .slot[aria-pressed="true"] {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+  .slot:disabled {
+    background: transparent;
+    color: var(--muted-foreground);
+    text-decoration: line-through;
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .agenda-event {
+    border-left: 3px solid var(--color-success);
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.5rem;
+    background: rgb(47 158 110 / 0.18);
+    color: var(--color-success);
+    font-size: 0.75rem;
+  }
+}
+
+/* Esconde a barra de rolagem mas mantém o scroll */
+@utility scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
