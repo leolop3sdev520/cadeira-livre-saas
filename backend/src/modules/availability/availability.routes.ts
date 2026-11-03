@@ -40,28 +40,35 @@ export async function availabilityRoutes(app: FastifyInstance) {
     // O T12:00:00 evita bugs de fuso horário que poderiam voltar um dia.
     const weekday = new Date(`${date}T12:00:00`).getDay();
 
-    // 3. Busca a jornada de trabalho e os agendamentos
-    const workingHours = await repository.getWorkingHours(
-      barbershopId,
-      professionalId,
-      weekday,
-    );
-    if (!workingHours) {
-      return reply.status(200).send({ slots: [] }); // Profissional não trabalha neste dia
-    }
+    const professionalIds =
+      professionalId === "any"
+        ? (await repository.getActiveProfessionals(barbershopId)).map(
+            (professional) => professional.id,
+          )
+        : [professionalId];
 
-    const appointments = await repository.getAppointmentsByDay(
-      professionalId,
-      date,
+    const slotsByProfessional = await Promise.all(
+      professionalIds.map(async (id) => {
+        const [workingHours, appointments] = await Promise.all([
+          repository.getWorkingHours(barbershopId, id, weekday),
+          repository.getAppointmentsByDay(id, date),
+        ]);
+        return service.generateSlots(
+          date,
+          serviceData.duration_min,
+          workingHours,
+          appointments,
+        );
+      }),
     );
 
-    // 4. Gera os slots livres
-    const slots = service.generateSlots(
-      date,
-      serviceData.duration_min,
-      workingHours,
-      appointments,
-    );
+    const slots = [
+      ...new Map(
+        slotsByProfessional
+          .flat()
+          .map((slot) => [slot.startTime, slot] as const),
+      ).values(),
+    ].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
     return reply.status(200).send({
       professionalId,

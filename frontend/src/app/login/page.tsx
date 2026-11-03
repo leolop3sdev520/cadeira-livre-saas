@@ -20,13 +20,20 @@ export default function LoginPage() {
         email,
         password,
       });
+      const payload = response.token.split(".")[1];
+      if (!payload) throw new Error("Token de autenticação inválido.");
+      const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+      const decodedPayload = JSON.parse(
+        atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")),
+      ) as { role?: string };
+      const destination =
+        decodedPayload.role === "super_admin" ? "/admin" : "/dashboard";
 
       // Salva o token no navegador
       localStorage.setItem("token", response.token);
 
       // Redireciona para o painel
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.href = "/dashboard";
+      window.location.href = destination;
     } catch (err: unknown) {
       // CORREÇÃO DO TYPESCRIPT AQUI:
       const errorObj = err as { message?: string };

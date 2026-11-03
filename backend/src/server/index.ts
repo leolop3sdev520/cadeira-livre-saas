@@ -1,6 +1,7 @@
 import fastify from "fastify";
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
+import multipart from "@fastify/multipart";
 import { env } from "../config/env.ts";
 import { errorHandlerPlugin } from "./plugins/error-handler.ts";
 import { corsPlugin } from "./plugins/cors.ts";
@@ -11,6 +12,10 @@ import { servicesRoutes } from "../modules/services/services.routes.ts";
 import { professionalsRoutes } from "../modules/professionals/professionals.routes.ts";
 import { availabilityRoutes } from "../modules/availability/availability.routes.ts";
 import { appointmentsRoutes } from "../modules/appointments/appointments.routes.ts";
+import { barbershopsRoutes } from "../modules/barbershops/barbershops.routes.ts";
+import { dashboardRoutes } from "../modules/dashboard/dashboard.routes.ts";
+import { customersRoutes } from "../modules/customers/customers.routes.ts";
+import { superAdminRoutes } from "../modules/super-admin/super-admin.routes.ts";
 import { sql } from "../shared/db/index.ts";
 
 const app = fastify({
@@ -28,6 +33,12 @@ app.register(corsPlugin);
 // 2. Outros plugins essenciais
 app.register(cookie);
 app.register(jwt, { secret: env.JWT_SECRET });
+app.register(multipart, {
+  limits: {
+    files: 1,
+    fileSize: 5 * 1024 * 1024,
+  },
+});
 app.register(errorHandlerPlugin);
 app.register(swaggerPlugin);
 
@@ -46,6 +57,10 @@ app.register(servicesRoutes);
 app.register(professionalsRoutes);
 app.register(availabilityRoutes);
 app.register(appointmentsRoutes);
+app.register(barbershopsRoutes);
+app.register(dashboardRoutes);
+app.register(customersRoutes);
+app.register(superAdminRoutes);
 
 const start = async () => {
   try {

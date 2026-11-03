@@ -5,52 +5,51 @@ export class AvailabilityService {
   generateSlots(
     dateStr: string,
     durationMin: number,
-    workingHours: WorkingHours,
+    workingHours: WorkingHours[],
     appointments: Appointment[],
   ) {
-    const slots: { startTime: string; endTime: string }[] = [];
+    const slots = new Map<string, { startTime: string; endTime: string }>();
 
-    // Constrói as datas de início e fim do expediente naquele dia (ex: 2026-11-02 09:00:00)
-    const [startHour, startMin] = workingHours.start_time
-      .split(":")
-      .map(Number);
-    const [endHour, endMin] = workingHours.end_time.split(":").map(Number);
+    for (const workingHour of workingHours) {
+      const [startHour, startMin] = workingHour.start_time
+        .split(":")
+        .map(Number);
+      const [endHour, endMin] = workingHour.end_time.split(":").map(Number);
 
-    let current = new Date(
-      `${dateStr}T${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}:00-03:00`,
-    );
-    const end = new Date(
-      `${dateStr}T${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}:00-03:00`,
-    );
+      let current = new Date(
+        `${dateStr}T${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}:00-03:00`,
+      );
+      const end = new Date(
+        `${dateStr}T${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}:00-03:00`,
+      );
 
-    const now = new Date(); // Para não retornar horários no passado se for hoje
+      const now = new Date();
 
-    while (current < end) {
-      const slotEnd = new Date(current.getTime() + durationMin * 60000);
+      while (current < end) {
+        const slotEnd = new Date(current.getTime() + durationMin * 60000);
 
-      // Se o slot passar do horário de fim do expediente, encerra o loop
-      if (slotEnd > end) break;
+        if (slotEnd > end) break;
 
-      // Verifica se este slot colide com algum agendamento existente
-      const hasConflict = appointments.some((app) => {
-        const appStart = new Date(app.start_time);
-        const appEnd = new Date(app.end_time);
-        // Lógica de sobreposição (Overlap): (InicioA < FimB) e (FimA > InicioB)
-        return current < appEnd && slotEnd > appStart;
-      });
-
-      // Se não tem conflito e não é um horário no passado, adiciona à lista
-      if (!hasConflict && current > now) {
-        slots.push({
-          startTime: current.toISOString(),
-          endTime: slotEnd.toISOString(),
+        const hasConflict = appointments.some((app) => {
+          const appStart = new Date(app.start_time);
+          const appEnd = new Date(app.end_time);
+          return current < appEnd && slotEnd > appStart;
         });
-      }
 
-      // Avança o relógio
-      current = new Date(current.getTime() + durationMin * 60000);
+        if (!hasConflict && current > now) {
+          const startTime = current.toISOString();
+          slots.set(startTime, {
+            startTime,
+            endTime: slotEnd.toISOString(),
+          });
+        }
+
+        current = new Date(current.getTime() + durationMin * 60000);
+      }
     }
 
-    return slots;
+    return [...slots.values()].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime),
+    );
   }
 }

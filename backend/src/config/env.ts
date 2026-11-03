@@ -12,6 +12,9 @@ const envSchema = z.object({
   JWT_SECRET: z
     .string()
     .min(10, "A chave JWT precisa ter pelo menos 10 caracteres."), // <-- NOVO
+  CLOUDINARY_CLOUD_NAME: z.string().default(""),
+  CLOUDINARY_API_KEY: z.string().default(""),
+  CLOUDINARY_API_SECRET: z.string().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);

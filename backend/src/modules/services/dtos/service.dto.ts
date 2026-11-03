@@ -8,6 +8,14 @@ export const createServiceSchema = z.object({
 
 export type CreateServiceDTO = z.infer<typeof createServiceSchema>;
 
+export const updateServiceSchema = createServiceSchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "Informe ao menos um campo para atualizar.",
+  });
+
+export type UpdateServiceDTO = z.infer<typeof updateServiceSchema>;
+
 export const serviceResponseSchema = z.object({
   id: z.string().uuid(),
   barbershop_id: z.string().uuid(),

@@ -1,11 +1,45 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { format, startOfToday, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { Loader2, Calendar as CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  format,
+  startOfToday,
+  parseISO,
+  isValid,
+} from "date-fns";
+import {
+  Loader2,
+  User,
+  Scissors,
+  Clock,
+  CalendarX,
+  Pencil,
+  ArrowLeft,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { ScheduleCalendar } from "@/components/schedule-calendar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Appointment = {
   id: string;
@@ -13,197 +47,326 @@ type Appointment = {
   professional_name: string;
   service_name: string;
   customer_name: string;
+  customer_email: string;
   start_time: string;
   end_time: string;
   status: string;
 };
 
-type Professional = { id: string; name: string };
-
-// Configurações da Grade
-const START_HOUR = 8; // 08:00
-const END_HOUR = 19; // 19:00
-const PIXELS_PER_MINUTE = 1.5; // 1h = 90px
+type CalendarView = "day" | "week" | "month";
 
 export default function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate] = useState(startOfToday()); // Simplificado para "Hoje"
+
+  const [view, setView] = useState<CalendarView>("day");
+  const [date, setDate] = useState(startOfToday());
+
+  // Estados do Modal de Detalhes/Edição
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Appointment | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editStartTime, setEditStartTime] = useState("");
+  const [isRescheduling, setIsRescheduling] = useState(false);
+
+  // Estados do Modal de Cancelamento e Loading
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  async function loadAppointments() {
+    try {
+      const data = await api.get<Appointment[]>("/api/v1/appointments");
+      setAppointments(data.filter((app) => app.status === "confirmed"));
+    } catch (err: unknown) {
+      console.error(err);
+      toast.error("Erro ao carregar a agenda.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [apptsData, profsData] = await Promise.all([
-          api.get<Appointment[]>("/api/v1/appointments"),
-          api.get<Professional[]>("/api/v1/professionals"),
-        ]);
-        setAppointments(apptsData);
-        setProfessionals(profsData);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadAppointments();
+  }, []);
+
+  const handleSelectEvent = (event: { resource: Appointment }) => {
+    setSelectedAppointment(event.resource);
+    setIsEditing(false);
+    setIsModalOpen(true);
+  };
+
+  const confirmCancelAppointment = async () => {
+    if (!selectedAppointment) return;
+
+    setIsCancelling(true);
+    try {
+      await api.patch(`/api/v1/appointments/${selectedAppointment.id}/cancel`, {
+        reason: "Cancelado pelo painel do barbeiro",
+      });
+
+      toast.success("Agendamento cancelado com sucesso!");
+      setIsCancelConfirmOpen(false);
+      setIsModalOpen(false);
+      await loadAppointments();
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      toast.error(errorObj.message || "Erro ao cancelar agendamento.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleEditAppointment = () => {
+    if (!selectedAppointment) return;
+    setEditStartTime(
+      format(parseISO(selectedAppointment.start_time), "yyyy-MM-dd'T'HH:mm"),
+    );
+    setIsEditing(true);
+  };
+
+  const handleRescheduleAppointment = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    if (!selectedAppointment || !editStartTime) return;
+
+    const newStartTime = new Date(editStartTime);
+    if (!isValid(newStartTime)) {
+      toast.error("Informe uma data e horário válidos.");
+      return;
+    }
+
+    setIsRescheduling(true);
+    try {
+      await api.patch(`/api/v1/appointments/${selectedAppointment.id}`, {
+        startTime: newStartTime.toISOString(),
+      });
+
+      toast.success("Agendamento reagendado com sucesso!");
+      setIsModalOpen(false);
+      setIsEditing(false);
+      await loadAppointments();
+    } catch (err: unknown) {
+      const errorObj = err as { status?: number; message?: string };
+      if (errorObj.status === 409) {
+        toast.error("Esse horário já está ocupado. Escolha outro horário.");
+      } else {
+        toast.error(errorObj.message || "Erro ao reagendar agendamento.");
       }
+    } finally {
+      setIsRescheduling(false);
     }
-    loadData();
-  }, []);
-
-  // Gera os horários da coluna esquerda (08:00, 09:00...)
-  const hours = useMemo(() => {
-    const h = [];
-    for (let i = START_HOUR; i <= END_HOUR; i++) {
-      h.push(`${String(i).padStart(2, "0")}:00`);
-    }
-    return h;
-  }, []);
-
-  // Filtra apenas os agendamentos do dia selecionado
-  const todayAppointments = appointments.filter((app) => {
-    const appDate = format(parseISO(app.start_time), "yyyy-MM-dd");
-    const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
-    return appDate === selectedDateStr && app.status === "confirmed";
-  });
+  };
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-4 animate-in fade-in">
-          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-          <p className="text-muted-foreground font-medium">
-            Buscando agenda...
-          </p>
+      <div className="space-y-3 h-[calc(100vh-8rem)] flex flex-col">
+        <Skeleton className="mb-6 h-10 w-48" />
+        <div className="flex-1 min-h-0 rounded-xl border border-border bg-card p-4">
+          <Skeleton className="h-125 w-full rounded-xl" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 h-[calc(100vh-8rem)] flex flex-col">
-      {/* Cabeçalho da Página */}
-      <div className="flex justify-between items-center shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Agenda</h1>
-          <p className="text-muted-foreground capitalize">
-            {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 bg-card border border-border rounded-md px-3 py-2 text-sm font-medium">
-          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-          Hoje
-        </div>
+    <div className="space-y-3 h-[calc(100vh-8rem)] flex flex-col">
+      <div className="shrink-0 space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight">Agenda</h1>
+        <p className="text-muted-foreground">
+          Gerencie os horários da sua barbearia.
+        </p>
       </div>
 
-      {/* Grid da Agenda */}
-      <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden flex flex-col relative">
-        {/* Cabeçalho das Colunas (Profissionais) */}
-        <div className="flex border-b border-border bg-muted/30 shrink-0">
-          <div className="w-16 shrink-0 border-r border-border" />{" "}
-          {/* Espaço da hora */}
-          {professionals.map((prof) => (
-            <div
-              key={prof.id}
-              className="flex-1 py-3 text-center border-r border-border last:border-0 font-semibold text-sm"
-            >
-              {prof.name}
-            </div>
-          ))}
-        </div>
+      <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden p-4">
+        <ScheduleCalendar
+          events={appointments}
+          view={view}
+          date={date}
+          onView={(v) => setView(v as CalendarView)}
+          onNavigate={setDate}
+          onSelectEvent={handleSelectEvent}
+        />
+      </div>
 
-        {/* Corpo com Scroll */}
-        <div className="flex-1 overflow-y-auto relative flex">
-          {/* Coluna de Horários */}
-          <div className="w-16 shrink-0 border-r border-border bg-muted/10 relative">
-            {hours.map((hour, i) => (
-              <div
-                key={hour}
-                className="absolute w-full text-right pr-2 text-xs text-muted-foreground -mt-2"
-                style={{ top: i * 60 * PIXELS_PER_MINUTE }}
-              >
-                {hour}
-              </div>
-            ))}
-          </div>
+      {/* MODAL DE DETALHES / EDIÇÃO */}
+      <Dialog
+        open={isModalOpen}
+        onOpenChange={(open) => {
+          setIsModalOpen(open);
+          if (!open) setIsEditing(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditing ? "Reagendar Agendamento" : "Detalhes do Agendamento"}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditing
+                ? "Escolha a nova data e horário para este agendamento."
+                : "Informações do cliente e do serviço."}
+            </DialogDescription>
+          </DialogHeader>
 
-          {/* Colunas dos Profissionais */}
-          <div className="flex-1 flex relative">
-            {/* Linhas horizontais de fundo */}
-            <div className="absolute inset-0 pointer-events-none">
-              {hours.map((_, i) => (
-                <div
-                  key={i}
-                  className="w-full border-t border-border/50"
-                  style={{
-                    height: 60 * PIXELS_PER_MINUTE,
-                    top: i * 60 * PIXELS_PER_MINUTE,
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Renderizando os agendamentos */}
-            {professionals.map((prof) => {
-              const profAppointments = todayAppointments.filter(
-                (a) => a.professional_id === prof.id,
-              );
-
-              return (
-                <div
-                  key={prof.id}
-                  className="flex-1 border-r border-border last:border-0 relative"
+          {selectedAppointment && (
+            <div className="space-y-4 py-4">
+              {isEditing ? (
+                <form
+                  onSubmit={handleRescheduleAppointment}
+                  className="space-y-4"
                 >
-                  {profAppointments.map((app) => {
-                    const startDate = parseISO(app.start_time);
-                    const endDate = parseISO(app.end_time);
+                  <div className="space-y-2">
+                    <Label htmlFor="reschedule-start-time">
+                      Nova data e horário
+                    </Label>
+                    <Input
+                      id="reschedule-start-time"
+                      type="datetime-local"
+                      value={editStartTime}
+                      onChange={(event) => setEditStartTime(event.target.value)}
+                      required
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Atual:{" "}
+                      {format(
+                        parseISO(selectedAppointment.start_time),
+                        "dd/MM/yyyy 'às' HH:mm",
+                      )}
+                    </p>
+                  </div>
 
-                    // Cálculo da posição (Baseado em minutos desde as 08:00)
-                    const startHour = startDate.getHours();
-                    const startMin = startDate.getMinutes();
-                    const totalMinutesFromStart =
-                      (startHour - START_HOUR) * 60 + startMin;
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setIsEditing(false)}
+                      disabled={isRescheduling}
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Voltar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1"
+                      disabled={isRescheduling || !editStartTime}
+                    >
+                      {isRescheduling && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Salvar horário
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <span className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                      <User className="h-4 w-4" /> Cliente
+                    </span>
+                    <p className="font-medium">
+                      {selectedAppointment.customer_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedAppointment.customer_email}
+                    </p>
+                  </div>
 
-                    const durationMin =
-                      (endDate.getTime() - startDate.getTime()) / (1000 * 60);
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                        <Scissors className="h-4 w-4" /> Serviço
+                      </span>
+                      <p className="font-medium">
+                        {selectedAppointment.service_name}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                        <User className="h-4 w-4" /> Profissional
+                      </span>
+                      <p className="font-medium">
+                        {selectedAppointment.professional_name}
+                      </p>
+                    </div>
+                  </div>
 
-                    // Estilos dinâmicos
-                    const top = totalMinutesFromStart * PIXELS_PER_MINUTE;
-                    const height = durationMin * PIXELS_PER_MINUTE;
+                  <div className="space-y-1">
+                    <span className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                      <Clock className="h-4 w-4" /> Horário
+                    </span>
+                    <p className="font-medium">
+                      {format(
+                        parseISO(selectedAppointment.start_time),
+                        "dd/MM/yyyy 'às' HH:mm",
+                      )}{" "}
+                      -{" "}
+                      {format(parseISO(selectedAppointment.end_time), "HH:mm")}
+                    </p>
+                  </div>
 
-                    return (
-                      <div
-                        key={app.id}
-                        className={cn(
-                          "absolute left-1 right-1 rounded-md p-2 text-xs border shadow-sm transition-all hover:z-10 hover:shadow-md cursor-pointer",
-                          // Cores baseadas no status (usando as variáveis do nosso CSS)
-                          app.status === "confirmed"
-                            ? "bg-success-bg text-success-fg border-success/30"
-                            : app.status === "pending"
-                              ? "bg-warning-bg text-warning-fg border-warning/30"
-                              : "bg-muted text-muted-foreground border-border",
-                        )}
-                        style={{ top: `${top}px`, height: `${height}px` }}
-                      >
-                        <div className="font-bold truncate">
-                          {format(startDate, "HH:mm")} -{" "}
-                          {format(endDate, "HH:mm")}
-                        </div>
-                        <div className="font-semibold truncate mt-0.5">
-                          {app.customer_name}
-                        </div>
-                        <div className="truncate opacity-80">
-                          {app.service_name}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+                  <div className="pt-4 border-t border-border mt-4 flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={handleEditAppointment}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={() => setIsCancelConfirmOpen(true)} // Abre o modal de confirmação
+                    >
+                      <CalendarX className="h-4 w-4 mr-2" />
+                      Cancelar
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DE CONFIRMAÇÃO DE CANCELAMENTO */}
+      <AlertDialog
+        open={isCancelConfirmOpen}
+        onOpenChange={setIsCancelConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar este agendamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem certeza que deseja cancelar o agendamento de{" "}
+              <strong>{selectedAppointment?.customer_name}</strong>? Esta ação
+              não pode ser desfeita e o horário ficará livre.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>
+              Voltar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault(); // Evita que o modal feche antes da requisição terminar
+                confirmCancelAppointment();
+              }}
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Sim, cancelar agendamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

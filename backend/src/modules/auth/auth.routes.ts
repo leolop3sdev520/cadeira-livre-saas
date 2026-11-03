@@ -65,4 +65,48 @@ export async function authRoutes(app: FastifyInstance) {
     reply.clearCookie("token", { path: "/" });
     return reply.status(200).send({ message: "Logout realizado com sucesso." });
   });
+
+  app.patch("/api/v1/users/password", async (request, reply) => {
+    const passwordSchema = z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(8).max(128),
+    });
+    const { currentPassword, newPassword } = passwordSchema.parse(request.body);
+    const userId = request.user?.sub;
+
+    if (!userId) {
+      throw Object.assign(new Error("Não autorizado."), { statusCode: 401 });
+    }
+
+    const [user] = await sql<{ password_hash: string }[]>`
+      SELECT password_hash
+      FROM users
+      WHERE id = ${userId}
+      LIMIT 1
+    `;
+    if (!user) {
+      throw Object.assign(new Error("Usuário não encontrado."), {
+        statusCode: 404,
+      });
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      currentPassword,
+      user.password_hash,
+    );
+    if (!passwordMatches) {
+      throw Object.assign(new Error("A senha atual está incorreta."), {
+        statusCode: 401,
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await sql`
+      UPDATE users
+      SET password_hash = ${passwordHash}
+      WHERE id = ${userId}
+    `;
+
+    return reply.status(200).send({ message: "Senha alterada com sucesso." });
+  });
 }

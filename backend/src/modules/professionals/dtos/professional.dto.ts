@@ -8,6 +8,22 @@ export const createProfessionalSchema = z.object({
 
 export type CreateProfessionalDTO = z.infer<typeof createProfessionalSchema>;
 
+export const updateProfessionalSchema = z
+  .object({
+    name: z.string().min(3, "O nome deve ter pelo menos 3 letras.").optional(),
+    email: z.string().email("E-mail inválido.").optional(),
+    phone: z
+      .string()
+      .min(10, "Insira um telefone válido com DDD.")
+      .nullable()
+      .optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "Informe ao menos um campo para atualizar.",
+  });
+
+export type UpdateProfessionalDTO = z.infer<typeof updateProfessionalSchema>;
+
 export const createWorkingHoursSchema = z
   .object({
     weekday: z

@@ -10,15 +10,29 @@ class ApiClient {
     const { body, headers, ...rest } = options;
     const token =
       typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const isFormData =
+      typeof FormData !== "undefined" && body instanceof FormData;
+    const requestHeaders = new Headers(headers);
+
+    if (isFormData) {
+      requestHeaders.delete("Content-Type");
+    } else if (!requestHeaders.has("Content-Type")) {
+      requestHeaders.set("Content-Type", "application/json");
+    }
+
+    if (token) {
+      requestHeaders.set("Authorization", `Bearer ${token}`);
+    }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...headers,
-      },
+      headers: requestHeaders,
       ...rest,
-      body: body ? JSON.stringify(body) : undefined,
+      body:
+        body === undefined
+          ? undefined
+          : isFormData
+            ? body
+            : JSON.stringify(body),
     });
 
     const text = await response.text();
@@ -41,6 +55,9 @@ class ApiClient {
   }
   patch<T>(endpoint: string, body: unknown, options?: RequestOptions) {
     return this.request<T>(endpoint, { ...options, method: "PATCH", body });
+  }
+  delete<T>(endpoint: string, options?: RequestOptions) {
+    return this.request<T>(endpoint, { ...options, method: "DELETE" });
   }
 }
 

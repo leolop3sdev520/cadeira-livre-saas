@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 export const getAvailabilitySchema = z.object({
-  professionalId: z.string().uuid("O professionalId deve ser um UUID válido."),
+  professionalId: z
+    .string()
+    .uuid("O professionalId deve ser um UUID válido.")
+    .or(z.literal("any")),
   serviceId: z.string().uuid("O serviceId deve ser um UUID válido."),
   date: z
     .string()

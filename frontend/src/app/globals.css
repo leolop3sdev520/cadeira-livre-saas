@@ -142,6 +142,11 @@
    4. BASE E UTILITÁRIOS GLOBAIS
    ========================================================================== */
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
@@ -164,6 +169,10 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
     *,
     *::before,
     *::after {

@@ -22,6 +22,23 @@ async function seed(): Promise<void> {
   `;
   console.log("✓ Usuário Admin (ze@barbearia.com / senha123)");
 
+  const superAdminPasswordHash = await bcrypt.hash("admin123", 10);
+  await sql`
+    INSERT INTO users (barbershop_id, name, email, password_hash, role)
+    VALUES (
+      ${barbershop!.id},
+      'Super Admin',
+      'admin@cadeiralivre.com',
+      ${superAdminPasswordHash},
+      'super_admin'
+    )
+    ON CONFLICT (email) DO UPDATE SET
+      barbershop_id = EXCLUDED.barbershop_id,
+      password_hash = EXCLUDED.password_hash,
+      role = EXCLUDED.role
+  `;
+  console.log("✓ Super Admin (admin@cadeiralivre.com / admin123)");
+
   // ─── Profissionais ─────────────────────────────────────
   const professionals = await sql<{ id: string; name: string }[]>`
     INSERT INTO professionals (barbershop_id, name, email, phone)
