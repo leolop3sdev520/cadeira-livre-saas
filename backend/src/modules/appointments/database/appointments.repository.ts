@@ -108,6 +108,17 @@ export class AppointmentsRepository {
     return service;
   }
 
+  async isProfessionalActive(barbershopId: string, professionalId: string) {
+    const [professional] = await sql<{ id: string }[]>`
+      SELECT id
+      FROM professionals
+      WHERE id = ${professionalId}
+        AND barbershop_id = ${barbershopId}
+        AND is_active = true
+    `;
+    return Boolean(professional);
+  }
+
   async create(
     barbershopId: string,
     data: CreateAppointmentDTO,
@@ -119,26 +130,44 @@ export class AppointmentsRepository {
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const management_token = generateShortCode();
-      const [appointment] = await sql`
-        WITH inserted AS (
-        INSERT INTO appointments (
-          barbershop_id, professional_id, service_id,
-          customer_name, customer_email,
-          start_time, end_time, duration_min, price_cents, management_token
-        )
-        VALUES (
-          ${barbershopId}, ${data.professionalId}, ${data.serviceId},
-          ${data.customerName}, ${data.customerEmail},
-          ${start.toISOString()}, ${end.toISOString()}, ${durationMin},
-          ${priceCents}, ${management_token}
-        )
-        ON CONFLICT (management_token) DO NOTHING
-        RETURNING *
-        )
-        SELECT inserted.*, p.name AS professional_name
-        FROM inserted
-        JOIN professionals p ON p.id = inserted.professional_id
-      `;
+      const appointment = await sql.begin(async (transaction) => {
+        const [professional] = await transaction<{ id: string }[]>`
+          SELECT id
+          FROM professionals
+          WHERE id = ${data.professionalId}
+            AND barbershop_id = ${barbershopId}
+            AND is_active = true
+          FOR UPDATE
+        `;
+        if (!professional) {
+          throw Object.assign(
+            new Error("Este profissional não está aceitando novos agendamentos."),
+            { statusCode: 400 },
+          );
+        }
+
+        const [createdAppointment] = await transaction`
+          WITH inserted AS (
+            INSERT INTO appointments (
+              barbershop_id, professional_id, service_id,
+              customer_name, customer_email,
+              start_time, end_time, duration_min, price_cents, management_token
+            )
+            VALUES (
+              ${barbershopId}, ${data.professionalId}, ${data.serviceId},
+              ${data.customerName}, ${data.customerEmail},
+              ${start.toISOString()}, ${end.toISOString()}, ${durationMin},
+              ${priceCents}, ${management_token}
+            )
+            ON CONFLICT (management_token) DO NOTHING
+            RETURNING *
+          )
+          SELECT inserted.*, p.name AS professional_name
+          FROM inserted
+          JOIN professionals p ON p.id = inserted.professional_id
+        `;
+        return createdAppointment;
+      });
       if (appointment) return appointment;
     }
 

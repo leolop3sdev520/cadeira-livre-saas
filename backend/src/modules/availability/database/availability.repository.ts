@@ -17,12 +17,13 @@ export class AvailabilityRepository {
     weekday: number,
   ) {
     return sql<{ start_time: string; end_time: string }[]>`
-      SELECT wh.start_time, wh.end_time FROM working_hours wh
+      SELECT wh.start_time, wh.end_time
+      FROM working_hours wh
       JOIN professionals p ON p.id = wh.professional_id
       WHERE wh.professional_id = ${professionalId}
         AND p.barbershop_id = ${barbershopId}
         AND p.is_active = true
-        AND weekday = ${weekday} 
+        AND wh.weekday = ${weekday}
         AND wh.is_active = true
     `;
   }

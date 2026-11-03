@@ -3,7 +3,15 @@ import { z } from "zod";
 export const createProfessionalSchema = z.object({
   name: z.string().min(3, "O nome deve ter pelo menos 3 letras."),
   email: z.string().email("E-mail inválido."),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .trim()
+    .optional()
+    .transform((phone) => phone || undefined)
+    .refine(
+      (phone) => phone === undefined || phone.length >= 10,
+      "Insira um telefone válido com DDD.",
+    ),
 });
 
 export type CreateProfessionalDTO = z.infer<typeof createProfessionalSchema>;
@@ -14,6 +22,7 @@ export const updateProfessionalSchema = z
     email: z.string().email("E-mail inválido.").optional(),
     phone: z
       .string()
+      .trim()
       .min(10, "Insira um telefone válido com DDD.")
       .nullable()
       .optional(),

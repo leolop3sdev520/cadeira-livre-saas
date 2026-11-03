@@ -71,7 +71,15 @@ type WorkingHour = {
 const professionalSchema = z.object({
   name: z.string().min(3, "O nome deve ter pelo menos 3 letras."),
   email: z.string().email("Insira um e-mail válido."),
-  phone: z.string().min(10, "Insira um telefone válido com DDD."),
+  phone: z
+    .string()
+    .transform((phone) => phone.trim())
+    .pipe(
+      z.union([
+        z.literal(""),
+        z.string().min(10, "Insira um telefone válido com DDD."),
+      ]),
+    ),
 });
 
 type ProfessionalForm = z.infer<typeof professionalSchema>;
@@ -129,6 +137,11 @@ export default function EquipePage() {
     reset,
   } = useForm<ProfessionalForm>({
     resolver: zodResolver(professionalSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+    },
   });
 
   const workingHourForm = useForm<WorkingHourForm>({
@@ -188,16 +201,20 @@ export default function EquipePage() {
   const onSubmit = async (data: ProfessionalForm) => {
     setIsSubmitting(true);
     try {
+      const professionalData = {
+        ...data,
+        phone: data.phone || undefined,
+      };
       if (editingProfessional) {
         // REQUISIÇÃO DE EDIÇÃO (PATCH)
         await api.patch(
           `/api/v1/professionals/${editingProfessional.id}`,
-          data,
+          professionalData,
         );
         toast.success("Profissional atualizado com sucesso!");
       } else {
         // REQUISIÇÃO DE CRIAÇÃO (POST)
-        await api.post("/api/v1/professionals", data);
+        await api.post("/api/v1/professionals", professionalData);
         toast.success("Profissional adicionado com sucesso!");
       }
 
@@ -228,9 +245,13 @@ export default function EquipePage() {
         `Profissional ${profToToggle.is_active ? "desativado" : "reativado"}!`,
       );
       loadProfessionals();
-    } catch {
+    } catch (error: unknown) {
+      const errorObj = error as { status?: number; message?: string };
       toast.error(
-        `Erro ao ${profToToggle.is_active ? "desativar" : "reativar"} profissional.`,
+        (errorObj.status === 403
+          ? "Limite de profissionais ativos atingido. Desative um profissional antes de reativar outro."
+          : errorObj.message) ||
+          `Erro ao ${profToToggle.is_active ? "desativar" : "reativar"} profissional.`,
       );
     } finally {
       setIsConfirmOpen(false);
@@ -381,7 +402,7 @@ export default function EquipePage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">WhatsApp</Label>
+                  <Label htmlFor="phone">WhatsApp (opcional)</Label>
                   <Input
                     id="phone"
                     placeholder="Ex: 11999999999"

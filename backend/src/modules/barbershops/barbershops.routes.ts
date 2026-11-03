@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { sql } from "../../shared/db/index.ts";
 import { uploadImageBuffer } from "../../shared/services/cloudinary.ts";
 
@@ -8,6 +9,24 @@ const slugSchema = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug de barbearia inválido.");
 
 export async function barbershopsRoutes(app: FastifyInstance) {
+  const registrationSchema = z.object({
+    name: z.string().trim().min(2).max(120),
+    slug: z
+      .string()
+      .trim()
+      .min(3)
+      .max(80)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug de barbearia inválido."),
+    admin_email: z
+      .string()
+      .trim()
+      .email()
+      .max(254)
+      .transform((email) => email.toLowerCase()),
+    admin_password: z.string().min(8).max(128),
+    plan: z.enum(["solo", "equipe"]),
+  });
+
   const profileSchema = z.object({
     name: z.string().trim().min(2).max(120),
     address: z.string().trim().max(300).nullable(),
@@ -23,6 +42,103 @@ export async function barbershopsRoutes(app: FastifyInstance) {
     }
     return barbershopId;
   };
+
+  app.post("/api/v1/barbershops/register", async (request, reply) => {
+    const data = registrationSchema.parse(request.body);
+    const passwordHash = await bcrypt.hash(data.admin_password, 12);
+
+    try {
+      const { barbershop, user } = await sql.begin(async (transaction) => {
+        const [createdBarbershop] = await transaction<{
+          id: string;
+          name: string;
+          slug: string;
+          plan: "solo" | "equipe";
+        }[]>`
+          INSERT INTO barbershops (name, slug, plan)
+          VALUES (${data.name}, ${data.slug}, ${data.plan})
+          RETURNING id, name, slug, plan
+        `;
+
+        if (!createdBarbershop) {
+          throw new Error("Não foi possível criar a barbearia.");
+        }
+
+        const [createdUser] = await transaction<{ id: string; name: string }[]>`
+          INSERT INTO users (
+            barbershop_id,
+            name,
+            email,
+            password_hash,
+            role
+          )
+          VALUES (
+            ${createdBarbershop.id},
+            ${data.name},
+            ${data.admin_email},
+            ${passwordHash},
+            'admin'
+          )
+          RETURNING id, name
+        `;
+
+        if (!createdUser) {
+          throw new Error("Não foi possível criar o usuário administrador.");
+        }
+
+        return { barbershop: createdBarbershop, user: createdUser };
+      });
+
+      const token = app.jwt.sign(
+        {
+          sub: user.id,
+          barbershop_id: barbershop.id,
+          role: "admin",
+        },
+        { expiresIn: "1d" },
+      );
+
+      reply.setCookie("token", token, {
+        path: "/",
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24,
+      });
+
+      return reply.status(201).send({
+        barbershop,
+        user: { name: user.name, role: "admin" },
+        token,
+      });
+    } catch (error: unknown) {
+      if (typeof error === "object" && error !== null && "code" in error) {
+        const databaseError = error as {
+          code?: string;
+          constraint?: string;
+        };
+        if (
+          databaseError.code === "23505" &&
+          databaseError.constraint === "barbershops_slug_key"
+        ) {
+          throw Object.assign(
+            new Error("Esta URL já está em uso. Escolha outra."),
+            { statusCode: 409 },
+          );
+        }
+        if (
+          databaseError.code === "23505" &&
+          databaseError.constraint === "users_email_key"
+        ) {
+          throw Object.assign(
+            new Error("Este e-mail já está cadastrado. Faça login."),
+            { statusCode: 409 },
+          );
+        }
+      }
+      throw error;
+    }
+  });
 
   app.get("/api/v1/barbershops/me", async (request, reply) => {
     const barbershopId = getAuthenticatedBarbershopId(request);
@@ -123,9 +239,10 @@ export async function barbershopsRoutes(app: FastifyInstance) {
         slug: string;
         address: string | null;
         logo_url: string | null;
+        is_active: boolean;
       }[]
     >`
-      SELECT id, name, slug, address, logo_url
+      SELECT id, name, slug, address, logo_url, is_active
       FROM barbershops
       WHERE slug = ${slug}
       LIMIT 1
@@ -135,6 +252,13 @@ export async function barbershopsRoutes(app: FastifyInstance) {
       throw Object.assign(new Error("Barbearia não encontrada."), {
         statusCode: 404,
       });
+    }
+
+    if (!barbershop.is_active) {
+      throw Object.assign(
+        new Error("Esta barbearia está temporariamente indisponível."),
+        { statusCode: 404 },
+      );
     }
 
     return reply.status(200).send(barbershop);

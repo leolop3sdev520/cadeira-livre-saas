@@ -116,6 +116,17 @@ export async function appointmentsRoutes(app: FastifyInstance) {
       }
       professionalId = professional.id;
     } else {
+      const isProfessionalActive = await repository.isProfessionalActive(
+        barbershopId,
+        professionalId,
+      );
+      if (!isProfessionalActive) {
+        throw Object.assign(
+          new Error("Este profissional não está aceitando novos agendamentos."),
+          { statusCode: 400 },
+        );
+      }
+
       const isAvailable = await repository.checkAvailability(
         barbershopId,
         startTime,

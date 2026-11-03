@@ -115,6 +115,9 @@ export default function BarbershopPublicPage() {
           }),
         ]);
         setServices(servicesData.sort((a, b) => a.name.localeCompare(b.name)));
+        if (process.env.NODE_ENV === "development") {
+          console.log("Profissionais recebidos pela vitrine:", professionalsData);
+        }
         setProfessionals(professionalsData);
       } catch (err) {
         const errorObj = err as { status?: number };
@@ -172,6 +175,49 @@ export default function BarbershopPublicPage() {
 
   const formatPrice = (cents: number) =>
     `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
+
+  const renderProfessionalOption = (
+    professional: Professional,
+    isAny = false,
+  ) => {
+    const isSelected = selectedProfessional?.id === professional.id;
+    const ProfessionalIcon = isAny ? Users : User;
+
+    return (
+      <button
+        key={professional.id}
+        onClick={() => setSelectedProfessional(professional)}
+        className={cn(
+          "w-full text-left flex items-center justify-between p-3 rounded-xl border transition-all",
+          isSelected
+            ? "border-primary ring-1 ring-primary bg-muted"
+            : "border-border hover:border-primary/50",
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-full",
+              isSelected
+                ? "bg-primary text-primary-foreground"
+                : "bg-card border border-border",
+            )}
+          >
+            <ProfessionalIcon className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-foreground">
+              {professional.name}
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              {isAny ? "O primeiro disponível" : "Barbeiro"}
+            </p>
+          </div>
+        </div>
+        {isSelected && <Check className="h-5 w-5 text-primary" />}
+      </button>
+    );
+  };
 
   const handleOpenModal = (open: boolean) => {
     setIsBookingModalOpen(open);
@@ -447,48 +493,15 @@ export default function BarbershopPublicPage() {
 
                   {bookingStep === "professional" && (
                     <div className="py-4 space-y-3">
-                      {[ANY_PROFESSIONAL, ...professionals].map((prof) => {
-                        const isAny = prof.id === "any";
-                        const isSelected =
-                          selectedProfessional?.id === prof.id;
-                        const ProfessionalIcon = isAny ? Users : User;
-                        return (
-                          <button
-                            key={prof.id}
-                            onClick={() => setSelectedProfessional(prof)}
-                            className={cn(
-                              "w-full text-left flex items-center justify-between p-3 rounded-xl border transition-all",
-                              isSelected
-                                ? "border-primary ring-1 ring-primary bg-muted"
-                                : "border-border hover:border-primary/50",
-                            )}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={cn(
-                                  "flex h-10 w-10 items-center justify-center rounded-full",
-                                  isSelected
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-card border border-border",
-                                )}
-                              >
-                                <ProfessionalIcon className="h-5 w-5" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-foreground">
-                                  {prof.name}
-                                </h4>
-                                <p className="text-xs text-muted-foreground">
-                                  {isAny ? "O primeiro disponível" : "Barbeiro"}
-                                </p>
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <Check className="h-5 w-5 text-primary" />
-                            )}
-                          </button>
-                        );
-                      })}
+                      {renderProfessionalOption(ANY_PROFESSIONAL, true)}
+                      {professionals.map((professional) =>
+                        renderProfessionalOption(professional),
+                      )}
+                      {professionals.length === 0 && (
+                        <p className="px-3 text-sm text-muted-foreground">
+                          Nenhum profissional específico está disponível no momento.
+                        </p>
+                      )}
                       <div className="pt-4 border-t border-border flex justify-end">
                         <button
                           disabled={!selectedProfessional}

@@ -1,5 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import { DashboardRepository } from "./database/dashboard.repository.ts";
+import {
+  DashboardRepository,
+  type DashboardChartPoint,
+} from "./database/dashboard.repository.ts";
 
 export async function dashboardRoutes(app: FastifyInstance) {
   const repository = new DashboardRepository();
@@ -20,7 +23,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
       throw Object.assign(new Error("Não autorizado."), { statusCode: 401 });
     }
 
-    const chartData = await repository.findChartData(barbershopId);
+    const chartData: DashboardChartPoint[] =
+      await repository.findChartData(barbershopId);
     return reply.status(200).send(chartData);
   });
 }

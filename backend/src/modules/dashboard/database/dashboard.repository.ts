@@ -9,7 +9,7 @@ export type DashboardMetrics = {
 };
 
 export type DashboardChartPoint = {
-  date: string;
+  month: string;
   appointments: number;
   revenue: number;
 };
@@ -60,28 +60,49 @@ export class DashboardRepository {
 
   async findChartData(barbershopId: string): Promise<DashboardChartPoint[]> {
     return sql<DashboardChartPoint[]>`
-      WITH local_days AS (
+      WITH current_month AS (
+        SELECT date_trunc(
+          'month',
+          CURRENT_TIMESTAMP AT TIME ZONE ${env.BUSINESS_TIMEZONE}
+        )::date AS local_month
+      ),
+      local_months AS (
         SELECT generate_series(
-          (CURRENT_TIMESTAMP AT TIME ZONE ${env.BUSINESS_TIMEZONE})::date
-            - interval '6 days',
-          (CURRENT_TIMESTAMP AT TIME ZONE ${env.BUSINESS_TIMEZONE})::date,
-          interval '1 day'
-        )::date AS local_day
+          current_month.local_month - interval '11 months',
+          current_month.local_month,
+          interval '1 month'
+        )::date AS local_month
+        FROM current_month
+      ),
+      monthly_appointments AS (
+        SELECT
+          date_trunc(
+            'month',
+            a.start_time AT TIME ZONE ${env.BUSINESS_TIMEZONE}
+          )::date AS local_month,
+          COUNT(*)::int AS appointments,
+          COALESCE(SUM(a.price_cents), 0)::float8 AS revenue
+        FROM appointments a
+        CROSS JOIN current_month
+        WHERE a.barbershop_id = ${barbershopId}
+          AND a.status = 'confirmed'
+          AND (a.start_time AT TIME ZONE ${env.BUSINESS_TIMEZONE})
+            >= current_month.local_month - interval '11 months'
+          AND (a.start_time AT TIME ZONE ${env.BUSINESS_TIMEZONE})
+            < current_month.local_month + interval '1 month'
+        GROUP BY 1
       )
       SELECT
-        TO_CHAR(local_days.local_day, 'DD/MM') AS date,
-        COUNT(a.id)::int AS appointments,
-        (COALESCE(SUM(a.price_cents), 0)::float8 / 100) AS revenue
-      FROM local_days
-      LEFT JOIN appointments a
-        ON a.barbershop_id = ${barbershopId}
-        AND a.status = 'confirmed'
-        AND (a.start_time AT TIME ZONE ${env.BUSINESS_TIMEZONE})
-          >= local_days.local_day::timestamp
-        AND (a.start_time AT TIME ZONE ${env.BUSINESS_TIMEZONE})
-          < (local_days.local_day + interval '1 day')::timestamp
-      GROUP BY local_days.local_day
-      ORDER BY local_days.local_day
+        (ARRAY[
+          'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+          'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+        ])[EXTRACT(MONTH FROM local_months.local_month)::int] AS month,
+        COALESCE(monthly_appointments.appointments, 0)::int AS appointments,
+        COALESCE(monthly_appointments.revenue, 0)::float8 AS revenue
+      FROM local_months
+      LEFT JOIN monthly_appointments
+        ON monthly_appointments.local_month = local_months.local_month
+      ORDER BY local_months.local_month
     `;
   }
 }

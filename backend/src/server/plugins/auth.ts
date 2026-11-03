@@ -29,6 +29,8 @@ async function authPlugin(app: FastifyInstance) {
 
       const isPublicRoute =
         isPublic ||
+        (request.method === "POST" &&
+          request.url.split("?")[0] === "/api/v1/barbershops/register") ||
         isClientGet ||
         isClientAppointmentsGet ||
         isClientPostAppointment ||
