@@ -113,7 +113,7 @@ export function ProfileDialog({
     }
 
     const formData = new FormData();
-    formData.append("logo", file);
+    formData.append("file", file);
     setIsUploading(true);
     try {
       const result = await api.post<{ logo_url: string }>(

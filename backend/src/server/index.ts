@@ -1,6 +1,7 @@
 import fastify from "fastify";
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
+import multipart from "@fastify/multipart";
 import { env } from "../config/env.ts";
 import { errorHandlerPlugin } from "./plugins/error-handler.ts";
 import { corsPlugin } from "./plugins/cors.ts";
@@ -37,6 +38,12 @@ app.register(corsPlugin);
 // 2. Plugins essenciais
 app.register(cookie);
 app.register(jwt, { secret: env.JWT_SECRET });
+app.register(multipart, {
+  limits: {
+    files: 1,
+    fileSize: 5 * 1024 * 1024,
+  },
+});
 app.register(errorHandlerPlugin);
 app.register(swaggerPlugin);
 
