@@ -22,10 +22,13 @@ export class DashboardRepository {
           AS today
       )
       SELECT
-        COUNT(*) FILTER (
-          WHERE a.status = 'confirmed'
-            AND (a.start_time AT TIME ZONE ${env.BUSINESS_TIMEZONE})::date =
-              local_date.today
+        COALESCE(
+          COUNT(*) FILTER (
+            WHERE a.status = 'confirmed'
+              AND (a.start_time AT TIME ZONE ${env.BUSINESS_TIMEZONE})::date =
+                local_date.today
+          ),
+          0
         )::int AS appointments_today,
         COALESCE(
           SUM(a.price_cents) FILTER (
@@ -35,17 +38,25 @@ export class DashboardRepository {
           ),
           0
         )::float8 AS revenue_today,
-        COUNT(DISTINCT LOWER(a.customer_email))::int AS clients_count,
         COALESCE(
-          COUNT(*) FILTER (WHERE a.status = 'no_show')::float8 * 100 /
-            NULLIF(
-              COUNT(*) FILTER (
-                WHERE a.status IN ('completed', 'no_show')
-              ),
-              0
-            ),
+          COUNT(DISTINCT LOWER(a.customer_email)),
           0
-        )::float8 AS no_show_rate
+        )::int AS clients_count,
+        CASE
+          WHEN COUNT(*) FILTER (
+            WHERE a.status IN ('completed', 'no_show')
+          ) = 0 THEN 0
+          ELSE COALESCE(
+            COUNT(*) FILTER (WHERE a.status = 'no_show')::float8 * 100 /
+              NULLIF(
+                COUNT(*) FILTER (
+                  WHERE a.status IN ('completed', 'no_show')
+                ),
+                0
+              ),
+            0
+          )::float8
+        END AS no_show_rate
       FROM appointments a
       CROSS JOIN local_date
       WHERE a.barbershop_id = ${barbershopId}
