@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "node --watch --env-file=.env src/server/index.ts",
-    "start": "node --env-file=.env src/server/index.ts",
+    "start": "node src/server/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test --env-file=.env",
     "db:migrate": "dbmate --env-file .env up",

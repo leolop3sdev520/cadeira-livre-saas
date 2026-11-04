@@ -1,7 +1,6 @@
 import fastify from "fastify";
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
-import multipart from "@fastify/multipart";
 import { env } from "../config/env.ts";
 import { errorHandlerPlugin } from "./plugins/error-handler.ts";
 import { corsPlugin } from "./plugins/cors.ts";
@@ -12,37 +11,34 @@ import { servicesRoutes } from "../modules/services/services.routes.ts";
 import { professionalsRoutes } from "../modules/professionals/professionals.routes.ts";
 import { availabilityRoutes } from "../modules/availability/availability.routes.ts";
 import { appointmentsRoutes } from "../modules/appointments/appointments.routes.ts";
-import { barbershopsRoutes } from "../modules/barbershops/barbershops.routes.ts";
-import { dashboardRoutes } from "../modules/dashboard/dashboard.routes.ts";
-import { customersRoutes } from "../modules/customers/customers.routes.ts";
 import { superAdminRoutes } from "../modules/super-admin/super-admin.routes.ts";
+import { barbershopsRoutes } from "../modules/barbershops/barbershops.routes.ts";
 import { sql } from "../shared/db/index.ts";
 
-const app = fastify({
-  logger: {
-    transport: {
-      target: "pino-pretty",
-      options: { translateTime: "HH:MM:ss Z", ignore: "pid,hostname" },
-    },
-  },
-});
+const isProduction = env.NODE_ENV === "production";
 
-// 1. O CORS TEM QUE SER O PRIMEIRO!
+// Configuração do logger: JSON puro em produção, pino-pretty em desenvolvimento
+const loggerConfig = isProduction
+  ? { level: "info" }
+  : {
+      transport: {
+        target: "pino-pretty",
+        options: { translateTime: "HH:MM:ss Z", ignore: "pid,hostname" },
+      },
+    };
+
+const app = fastify({ logger: loggerConfig });
+
+// 1. CORS deve ser o primeiro para lidar com requisições OPTIONS
 app.register(corsPlugin);
 
-// 2. Outros plugins essenciais
+// 2. Plugins essenciais
 app.register(cookie);
 app.register(jwt, { secret: env.JWT_SECRET });
-app.register(multipart, {
-  limits: {
-    files: 1,
-    fileSize: 5 * 1024 * 1024,
-  },
-});
 app.register(errorHandlerPlugin);
 app.register(swaggerPlugin);
 
-// 3. Middleware de Autenticação Global
+// 3. Middleware Global
 app.register(authPluginGlobal);
 
 // 4. Health Check
@@ -52,14 +48,12 @@ app.get("/health", async () => {
 });
 
 // 5. Rotas
+app.register(barbershopsRoutes);
 app.register(authRoutes);
 app.register(servicesRoutes);
 app.register(professionalsRoutes);
 app.register(availabilityRoutes);
 app.register(appointmentsRoutes);
-app.register(barbershopsRoutes);
-app.register(dashboardRoutes);
-app.register(customersRoutes);
 app.register(superAdminRoutes);
 
 const start = async () => {
