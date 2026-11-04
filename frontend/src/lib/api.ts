@@ -1,7 +1,9 @@
 type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown };
 
 class ApiClient {
-  private baseUrl: string = "http://localhost:3333";
+  // Usa a URL da Vercel (produção) ou o localhost (desenvolvimento)
+  private baseUrl: string =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 
   private async request<T>(
     endpoint: string,
