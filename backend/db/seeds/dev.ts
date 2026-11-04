@@ -42,10 +42,17 @@ async function seed(): Promise<void> {
   // ─── Profissionais ─────────────────────────────────────
   const professionals = await sql<{ id: string; name: string }[]>`
     INSERT INTO professionals (barbershop_id, name, email, phone)
-    VALUES
-      (${barbershop!.id}, 'Rafael Almeida', 'rafael@cadeiralivre.dev', '+55 11 99999-0001'),
-      (${barbershop!.id}, 'Marina Costa',   'marina@cadeiralivre.dev', '+55 11 99999-0002')
-    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+    SELECT ${barbershop!.id}, v.name, v.email, v.phone
+    FROM (VALUES
+      ('Rafael Almeida', 'rafael@cadeiralivre.dev', '+55 11 99999-0001'),
+      ('Marina Costa', 'marina@cadeiralivre.dev', '+55 11 99999-0002')
+    ) AS v(name, email, phone)
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM professionals p
+      WHERE p.barbershop_id = ${barbershop!.id}
+        AND p.email = v.email
+    )
     RETURNING id, name
   `;
   console.log("✓ Profissionais:", professionals.map((p) => p.name).join(", "));
