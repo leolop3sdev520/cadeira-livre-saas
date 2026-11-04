@@ -1,5 +1,9 @@
 # 🪑 Cadeira Livre - SaaS de Agendamento Multi-Tenant
 
+**🚀 Acesse o projeto rodando ao vivo:** [https://cadeira-livre-web.vercel.app](https://cadeira-livre-web.vercel.app)
+
+**📖 Documentação da API (Swagger):** [https://cadeira-livre-api.onrender.com/docs](https://cadeira-livre-api.onrender.com/docs)
+
 O **Cadeira Livre** é uma plataforma SaaS (Software as a Service) completa para gestão de agendamentos em barbearias e clínicas. O sistema foi projetado para ser multi-tenant, permitindo que várias barbearias utilizem a mesma infraestrutura com isolamento total de dados, controle de planos de assinatura e uma interface premium.
 
 ## 🚀 Diferenciais Técnicos
